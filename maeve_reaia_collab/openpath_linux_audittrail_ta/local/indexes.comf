@@ -1,5 +1,5 @@
 #indexes.conf
-[linux-index]
+[os]
 homePath   = $SPLUNK_DB/os/db
 coldPath   = $SPLUNK_DB/os/colddb
 thawedPath = $SPLUNK_DB/os/thaweddb
