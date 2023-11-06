@@ -1,6 +1,6 @@
 #indexes.conf
 [linux-index]
-homePath   = $SPLUNK_DB/linux_index/db
-coldPath   = $SPLUNK_DB/linux_index/colddb
-thawedPath = $SPLUNK_DB/linux_index/thaweddb
+homePath   = $SPLUNK_DB/os/db
+coldPath   = $SPLUNK_DB/os/colddb
+thawedPath = $SPLUNK_DB/os/thaweddb
 disabled = 0
