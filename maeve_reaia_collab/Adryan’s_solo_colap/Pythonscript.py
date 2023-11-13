@@ -1,67 +1,65 @@
 import os
 import requests
-import json
-import random
-import string
+from configparser import ConfigParser
 
-# API endpoints for different types of entities
-api_endpoints = {
-    "Netscreen Firewall Data": "https://api.recordedfuture.com/v2/ip/IP_Address_Demo_Events",
-    "Symantec EP Data": "https://api.recordedfuture.com/v2/hash/Hash_Demo_Events",
-    "ISC Bind": "https://api.recordedfuture.com/v2/domain/Domain_Demo_Events",
-    "Squid Proxy Data": "https://api.recordedfuture.com/v2/url/URL_Demo_Events",
-    "Tenable SC": "https://api.recordedfuture.com/v2/vulnerability/Vulnerability_Demo_Events"
+# Read API token from token.ini
+config = ConfigParser()
+config.read("/Applications/Splunk/etc/apps/api_calls/token.ini")
+API_TOKEN = config.get("API", "TOKEN")
+
+OUTPUT_DIRECTORY = "/Applications/Splunk/etc/apps/api_calls/log"  # Update this with the desired directory path
+INPUT_DIRECTORY = "/Applications/Splunk/etc/system/local"  # Add leading slash to the path
+
+# Define API endpoints
+API_ENDPOINTS = [
+    "https://api.recordedfuture.com/v2/ip/demoevents?limit=1000",
+    "https://api.recordedfuture.com/v2/hash/demoevents?limit=1000",
+    "https://api.recordedfuture.com/v2/domain/demoevents?limit=1000",
+    "https://api.recordedfuture.com/v2/url/demoevents?limit=1000",
+    "https://api.recordedfuture.com/v2/vulnerability/demoevents?limit=1000"
+]
+
+# Ensure the output directory exists
+os.makedirs(OUTPUT_DIRECTORY, exist_ok=True)
+
+# Map entity types to index and sourcetype values
+entity_type_mapping = {
+    "ip": {"index": "ip_index", "sourcetype": "ip_sourcetype"},
+    "hash": {"index": "hash_index", "sourcetype": "hash_sourcetype"},
+    "domain": {"index": "domain_index", "sourcetype": "domain_sourcetype"},
+    "url": {"index": "url_index", "sourcetype": "url_sourcetype"},
+    "vulnerability": {"index": "vuln_index", "sourcetype": "vuln_sourcetype"}
 }
 
-# Splunk configuration parameters
-index = "your_index_name"
-sourcetype = "your_sourcetype_name"
+# List to store created JSON files
+created_files = []
 
-# Directory for sample logs
-log_directory = "var/log/app_test"
+# Loop through API endpoints and make requests
+for endpoint in API_ENDPOINTS:
+    entity_name = endpoint.split("/")[-2].lower()
+    filename = f"{entity_name}_demo_events.json"
+    file_path = os.path.join(OUTPUT_DIRECTORY, filename)
 
-# Create the log directory if it doesn't exist
-os.makedirs(log_directory, exist_ok=True)
+    headers = {"X-RFToken": API_TOKEN}
+    response = requests.get(endpoint, headers=headers)
 
-# Output directory for inputs.conf
-output_directory = "/opt/splunk/etc/system/local/"
+    with open(file_path, "w") as file:
+        file.write(response.text)
 
-# Create the output directory if it doesn't exist
-os.makedirs(output_directory, exist_ok=True)
+    created_files.append((file_path, entity_name))
+    print(f"Data fetched from {endpoint} and saved to {file_path}")
 
-# API token for authentication
-token = "heretoken"
+# Generate inputs.conf content
+inputs_conf_content = ""
+for file_path, entity_name in created_files:
+    file_name = os.path.basename(file_path).split(".")[0]
+    index = entity_type_mapping[entity_name]["index"]
+    sourcetype = entity_type_mapping[entity_name]["sourcetype"]
+    inputs_conf_content += f"\n[monitor://{file_path}]\nindex = {index}\nsourcetype = {sourcetype}\ndisabled = false\n"
 
-# Function to generate sample log data and save to file
-def generate_and_save_sample_data(entity, endpoint):
-    formatted_entity_name = entity.replace(" ", "_").lower()
-    file_start_name = f"{formatted_entity_name}_sample_logs"
-    filename = os.path.join(log_directory, f"{file_start_name}.log")
+# Write inputs.conf content to file
+inputs_conf_path = os.path.join(INPUT_DIRECTORY, "inputs.conf")
+with open(inputs_conf_path, "w") as inputs_conf_file:
+    inputs_conf_file.write(inputs_conf_content)
 
-    sample_data = {
-        "timestamp": "2023-11-13T12:00:00Z",
-        "event_type": "sample_event",
-        "source_ip": f"192.168.1.{random.randint(1, 255)}",
-        "destination_ip": f"10.0.0.{random.randint(1, 255)}",
-        "message": "This is a sample log message.",
-        "hash_value": ''.join(random.choices(string.hexdigits, k=32)),
-        "url": f"http://example.com/{formatted_entity_name}",
-        "vulnerability_id": f"VULN-{random.randint(1000, 9999)}"
-    }
-
-    # Save sample data to file
-    with open(filename, "w") as file:
-        json.dump(sample_data, file, indent=4)
-    print(f"Sample logs generated for {endpoint} and saved to {filename}")
-
-    # Create Splunk inputs.conf monitoring stanza
-    inputs_conf_content = f"[monitor://{log_directory}/{file_start_name}*.log]\nindex = {index}\nsourcetype = {sourcetype}\ndisabled = false\n"
-    
-    # Save inputs.conf content to a file in the specified output directory
-    inputs_conf_filename = os.path.join(output_directory, "inputs.conf")
-    with open(inputs_conf_filename, "a") as inputs_conf_file:
-        inputs_conf_file.write(inputs_conf_content)
-
-# Generate sample logs for each API endpoint
-for entity, endpoint in api_endpoints.items():
-    generate_and_save_sample_data(entity, endpoint)
+print(f"inputs.conf content written to {inputs_conf_path}")
