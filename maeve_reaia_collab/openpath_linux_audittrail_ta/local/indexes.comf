@@ -1,6 +1,0 @@
-#indexes.conf
-[os]
-homePath   = $SPLUNK_DB/os/db
-coldPath   = $SPLUNK_DB/os/colddb
-thawedPath = $SPLUNK_DB/os/thaweddb
-disabled = 0
